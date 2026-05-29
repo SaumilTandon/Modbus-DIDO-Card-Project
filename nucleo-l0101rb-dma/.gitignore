@@ -1,0 +1,28 @@
+# Ignore build and debug
+Debug/
+Release/
+build/
+
+# Ignore CubeIDE metadata
+.settings/
+.cproject
+.project
+.mxproject
+*.launch
+
+# Ignore VS Code configs
+.vscode/
+launch.json
+settings.json
+c_cpp_properties.json
+
+# Ignore binaries and objects
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.d
+*.lst
+*.log
+.
