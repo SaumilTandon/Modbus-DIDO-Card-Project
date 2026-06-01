@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define RS485_DE_RE_Pin GPIO_PIN_8
+#define RS485_DE_RE_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
