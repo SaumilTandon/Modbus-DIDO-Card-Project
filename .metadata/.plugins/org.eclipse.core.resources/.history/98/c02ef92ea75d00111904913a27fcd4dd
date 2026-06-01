@@ -46,9 +46,7 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-volatile uint32_t adcValues[4];   // store PA0–PA3 readings
-char msg[60];
-ADC_ChannelConfTypeDef sConfig;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,7 +60,10 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+volatile uint32_t adcValues[4];  // store PA0–PA3 readings
 
+char msg[50];                 // for UART prints
+ADC_ChannelConfTypeDef sConfig;  // global config structure
 /* USER CODE END 0 */
 
 /**
@@ -109,26 +110,26 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  // Loop through channels PA0–PA3
-	      for (int ch = 0; ch < 4; ch++)
-	      {
-	        sConfig.Channel = ch;   // ADC_CHANNEL_0..3 map to PA0..PA3
-	        sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-	        sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES_5;
-	        HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	     for (int ch = 0; ch < 4; ch++)
+	     {
+	       sConfig.Channel = ch;   // ADC_CHANNEL_0,1,2,3 are just 0,1,2,3
+	       sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+	       sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES_5;
+	       HAL_ADC_ConfigChannel(&hadc, &sConfig);
 
-	        HAL_ADC_Start(&hadc);
-	        HAL_ADC_PollForConversion(&hadc, HAL_MAX_DELAY);
-	        adcValues[ch] = HAL_ADC_GetValue(&hadc);
+	       HAL_ADC_Start(&hadc);
+	       HAL_ADC_PollForConversion(&hadc, HAL_MAX_DELAY);
+	       adcValue = HAL_ADC_GetValue(&hadc);
 
-	        // Print channel and value
-	        sprintf(msg, "AIN%d (PA%d): %lu\r\n", ch+1, ch, adcValues[ch]);
-	        HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	       // Print channel and value
+	       sprintf(msg, "AIN%d (PA%d): %lu\r\n", ch+1, ch, adcValue);
+	       HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
-	        HAL_Delay(200); // small delay between channels
-	      }
+	       HAL_Delay(200); // small delay between channels
+	     }
 
-	      HAL_Delay(500); // pause before repeating the cycle
-	    }
+	     HAL_Delay(500); // pause before repeating the cycle
+  }
   /* USER CODE END 3 */
 }
 

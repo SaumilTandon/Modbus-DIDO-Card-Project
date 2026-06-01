@@ -46,9 +46,10 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-volatile uint32_t adcValues[4];   // store PA0–PA3 readings
-char msg[60];
-ADC_ChannelConfTypeDef sConfig;
+#define RX_BUFFER_SIZE 64
+
+char txmsg[] = "Hello RS485!\r\n";   // TX string
+uint8_t rxBuffer[RX_BUFFER_SIZE];    // RX buffer
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,7 +98,8 @@ int main(void)
   MX_ADC_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET); // RX mode
+  HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
 
   /* USER CODE END 2 */
 
@@ -108,27 +110,35 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // Loop through channels PA0–PA3
-	      for (int ch = 0; ch < 4; ch++)
-	      {
-	        sConfig.Channel = ch;   // ADC_CHANNEL_0..3 map to PA0..PA3
-	        sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-	        sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES_5;
-	        HAL_ADC_ConfigChannel(&hadc, &sConfig);
+	  /* ---- Transmit periodically ---- */
+#if 1
 
-	        HAL_ADC_Start(&hadc);
-	        HAL_ADC_PollForConversion(&hadc, HAL_MAX_DELAY);
-	        adcValues[ch] = HAL_ADC_GetValue(&hadc);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // Relay 1 ON
 
-	        // Print channel and value
-	        sprintf(msg, "AIN%d (PA%d): %lu\r\n", ch+1, ch, adcValues[ch]);
-	        HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET); // Relay 2 ON
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET); // Relay 3 ON
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET); // Relay 4 ON
 
-	        HAL_Delay(200); // small delay between channels
-	      }
+#endif
+	  // Periodic TX demo (optional)
+	      HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET); // TX mode
+	      HAL_UART_Transmit(&huart1, (uint8_t*)txmsg, strlen(txmsg), HAL_MAX_DELAY);
+	      HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET); // back to RX mode
 
-	      HAL_Delay(500); // pause before repeating the cycle
-	    }
+	      HAL_Delay(1000);
+
+	      // Relay toggling demo (unchanged)
+	      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_SET);
+	      HAL_Delay(200);
+	      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+	      HAL_Delay(200);
+#if 1
+	      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // Relay 1 OFF
+	      	  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET); // Relay 2 OFF
+	      	  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET); // Relay 3 OFF
+	      	  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET); // Relay 4 OFF
+#endif
+  }
   /* USER CODE END 3 */
 }
 
@@ -328,7 +338,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Callback when Idle or buffer full
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    if (huart->Instance == USART1)
+    {
+        // Switch to TX mode
+        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
 
+        HAL_UART_Transmit(&huart1, rxBuffer, Size, HAL_MAX_DELAY);
+
+        // Back to RX mode
+        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
+
+        // Restart reception
+        HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
+    }
+}
 
 
 /* USER CODE END 4 */
