@@ -105,7 +105,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
-	HAL_UART_Receive_DMA(&hlpuart1, (uint8_t*) rxBuffer, RX_BUFFER_SIZE);
+  HAL_UART_Receive_DMA(&hlpuart1, (uint8_t *)rxBuffer, RX_BUFFER_SIZE);
   __HAL_UART_ENABLE_IT(&hlpuart1, UART_IT_IDLE);  // enable idle line detection
 
 
@@ -312,7 +312,7 @@ void HAL_UART_IDLECallback(UART_HandleTypeDef *huart) {
             rxBuffer[RX_BUFFER_SIZE-1] = '\0';
         }
 
-        // Trim only CR/LF
+        // Trim CR/LF
         for (int i = 0; i < received; i++) {
             if (rxBuffer[i] == '\r' || rxBuffer[i] == '\n') {
                 rxBuffer[i] = '\0';
@@ -320,10 +320,10 @@ void HAL_UART_IDLECallback(UART_HandleTypeDef *huart) {
             }
         }
 
-        // Debug print to COM3
+        // Debug: print what was actually received
         printf("RX: '%s'\r\n", rxBuffer);
 
-        // Compare using substring search
+        // Compare using strstr
         if (strstr(rxBuffer, "Namaste") != NULL) {
             strcpy(txBuffer, "hello\r\n");
         }
@@ -336,12 +336,12 @@ void HAL_UART_IDLECallback(UART_HandleTypeDef *huart) {
 
         HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t *)txBuffer, strlen(txBuffer));
 
-        // Clear buffer and restart DMA
         memset(rxBuffer, 0, RX_BUFFER_SIZE);
         HAL_UART_Receive_DMA(&hlpuart1, (uint8_t *)rxBuffer, RX_BUFFER_SIZE);
-        __HAL_UART_ENABLE_IT(&hlpuart1, UART_IT_IDLE);
     }
 }
+
+
 
 
 /* USER CODE END 4 */

@@ -46,8 +46,7 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-char txmsg[] = "Hello RS485!\r\n";
-uint8_t rxByte;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,7 +95,8 @@ int main(void)
   MX_ADC_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-    char txmsg[] = "Hello RS485!\r\n";
+  uint8_t rxbuf[32];
+  	  char txmsg[] = "Hello RS485!\r\n";
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -106,13 +106,30 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  /* ---- Transmit periodically ---- */
-	  HAL_UART_Transmit(&huart1, (uint8_t*)"Hello RS485!\r\n", 15, HAL_MAX_DELAY);
-	  HAL_Delay(500);
+	  // Relay test sequence
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // Relay 1 ON
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // Relay 1 OFF
+	  HAL_Delay(1000);
 
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET); // Relay 2 ON
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET); // Relay 2 OFF
+	  HAL_Delay(1000);
+
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET); // Relay 3 ON
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET); // Relay 3 OFF
+	  HAL_Delay(1000);
+
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET); // Relay 4 ON
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET); // Relay 4 OFF
+	  HAL_Delay(1000);
+  }
   /* USER CODE END 3 */
 }
-}
+
 /**
   * @brief System Clock Configuration
   * @retval None

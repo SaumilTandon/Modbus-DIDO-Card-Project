@@ -46,8 +46,9 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-char txmsg[] = "Hello RS485!\r\n";
-uint8_t rxByte;
+volatile uint32_t adcValue = 0;   // for Live Expressions
+char msg[50];                         // for UART prints
+ADC_ChannelConfTypeDef sConfig;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,6 +97,7 @@ int main(void)
   MX_ADC_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  uint8_t rxbuf[32];
     char txmsg[] = "Hello RS485!\r\n";
   /* USER CODE END 2 */
 
@@ -106,10 +108,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  /* ---- Transmit periodically ---- */
-	  HAL_UART_Transmit(&huart1, (uint8_t*)"Hello RS485!\r\n", 15, HAL_MAX_DELAY);
-	  HAL_Delay(500);
+	  /* ---- Transmit Mode ---- */
+	     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); // PB1 high = TX mode
+	     HAL_UART_Transmit(&huart1, (uint8_t*)txmsg, strlen(txmsg), HAL_MAX_DELAY);
 
+	     HAL_Delay(500);
+
+	     /* ---- Receive Mode ---- */
+	     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); // PB1 low = RX mode
+	     memset(rxbuf, 0, sizeof(rxbuf));
+	     if (HAL_UART_Receive(&huart1, rxbuf, sizeof(rxbuf), 1000) == HAL_OK)
+	     {
+	       // Echo back what was received
+	       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); // TX mode
+	       HAL_UART_Transmit(&huart1, rxbuf, strlen((char*)rxbuf), HAL_MAX_DELAY);
+	       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); // back to RX
+	     }
+
+	     HAL_Delay(500);
   /* USER CODE END 3 */
 }
 }

@@ -167,11 +167,7 @@ void LPUART1_IRQHandler(void)
   /* USER CODE END LPUART1_IRQn 0 */
   HAL_UART_IRQHandler(&hlpuart1);
   /* USER CODE BEGIN LPUART1_IRQn 1 */
-  if (__HAL_UART_GET_FLAG(&hlpuart1, UART_FLAG_IDLE))
-    {
-        __HAL_UART_CLEAR_IDLEFLAG(&hlpuart1);
-        HAL_UART_IDLECallback(&hlpuart1);   // call your idle handler
-    }
+
   /* USER CODE END LPUART1_IRQn 1 */
 }
 

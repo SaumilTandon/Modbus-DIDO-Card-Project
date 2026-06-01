@@ -107,9 +107,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  /* ---- Transmit periodically ---- */
-	  HAL_UART_Transmit(&huart1, (uint8_t*)"Hello RS485!\r\n", 15, HAL_MAX_DELAY);
-	  HAL_Delay(500);
+	      HAL_UART_Transmit(&huart1, (uint8_t*)txmsg, strlen(txmsg), HAL_MAX_DELAY);
+	      HAL_Delay(500);
 
+	      /* ---- Receive single byte and echo ---- */
+	      if (HAL_UART_Receive(&huart1, &rxByte, 1, 100) == HAL_OK)
+	      {
+	        HAL_UART_Transmit(&huart1, &rxByte, 1, HAL_MAX_DELAY);
+	      }
   /* USER CODE END 3 */
 }
 }

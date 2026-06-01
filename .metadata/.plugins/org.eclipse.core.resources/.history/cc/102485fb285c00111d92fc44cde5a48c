@@ -46,8 +46,11 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-char txmsg[] = "Hello RS485!\r\n";
-uint8_t rxByte;
+volatile uint32_t txCounter = 0;   // increments every transmit
+volatile uint8_t lastByte = 0;     // stores last received byte
+volatile uint32_t adcValue = 0;   // for Live Expressions
+char msg[50];                     // buffer for sprintf UART prints
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -106,9 +109,26 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  /* ---- Transmit periodically ---- */
-	  HAL_UART_Transmit(&huart1, (uint8_t*)"Hello RS485!\r\n", 15, HAL_MAX_DELAY);
-	  HAL_Delay(500);
+	  /* ---- Transmit ---- */
+	      HAL_UART_Transmit(&huart1, (uint8_t*)txmsg, strlen(txmsg), HAL_MAX_DELAY);
+	      txCounter++;   // increment counter each time we send
+	      HAL_Delay(500);
+
+	      /* ---- Read ADC ---- */
+	      HAL_ADC_Start(&hadc);
+	      if (HAL_ADC_PollForConversion(&hadc, 10) == HAL_OK) {
+	          adcValue = HAL_ADC_GetValue(&hadc);
+	      }
+	      /* ---- Debug print with sprintf ---- */
+	      sprintf(msg, "ADC=%lu, TX=%lu, RX=%u\r\n", adcValue, txCounter, lastByte);
+	      HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
+	      /* ---- Receive ---- */
+	      uint8_t byte;
+	          if (HAL_UART_Receive(&huart1, &byte, 1, 100) == HAL_OK) {
+	              lastByte = byte;  // capture received byte
+	              HAL_UART_Transmit(&huart1, &byte, 1, HAL_MAX_DELAY); // echo back
+	          }
 
   /* USER CODE END 3 */
 }

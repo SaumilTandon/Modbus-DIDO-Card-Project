@@ -339,7 +339,6 @@ void HAL_UART_IDLECallback(UART_HandleTypeDef *huart) {
         // Clear buffer and restart DMA
         memset(rxBuffer, 0, RX_BUFFER_SIZE);
         HAL_UART_Receive_DMA(&hlpuart1, (uint8_t *)rxBuffer, RX_BUFFER_SIZE);
-        __HAL_UART_ENABLE_IT(&hlpuart1, UART_IT_IDLE);
     }
 }
 
