@@ -46,14 +46,12 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-
 #define RX_BUFFER_SIZE 64
 uint8_t rxBuffer[RX_BUFFER_SIZE];
 
 #define NUM_COILS 4
 uint8_t coilStatus[NUM_COILS] = {0};
-uint16_t coilPinMap[NUM_COILS] = {Relay_1_Pin, Relay_2_Pin, Relay_3_Pin, Relay_4_Pin};
-GPIO_TypeDef* coilPortMap[NUM_COILS] = {Relay_1_GPIO_Port, Relay_2_GPIO_Port, Relay_3_GPIO_Port, Relay_4_GPIO_Port};
+uint16_t coilPinMap[NUM_COILS] = {GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_6, GPIO_PIN_7};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -337,23 +335,21 @@ uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len)
 
 
 
+
+
 void Coil_Write(uint8_t coilIndex, uint8_t value)
 {
     if (coilIndex < NUM_COILS) {
         coilStatus[coilIndex] = value ? 1 : 0;
-        HAL_GPIO_WritePin(coilPortMap[coilIndex], coilPinMap[coilIndex],
+        HAL_GPIO_WritePin(GPIOA, coilPinMap[coilIndex],
                           value ? GPIO_PIN_SET : GPIO_PIN_RESET);
     }
 }
 
-
-
 uint8_t Coil_Read(uint8_t coilIndex)
 {
-    if (coilIndex < NUM_COILS) {
-        GPIO_PinState state = HAL_GPIO_ReadPin(coilPortMap[coilIndex], coilPinMap[coilIndex]);
-        return (state == GPIO_PIN_SET) ? 1 : 0;
-    }
+    if (coilIndex < NUM_COILS)
+        return coilStatus[coilIndex];
     return 0;
 }
 
@@ -384,8 +380,7 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
         txBuf[0] = frame[0];
         txBuf[1] = func;
         txBuf[2] = (qty+7)/8;
-        memset(&txBuf[3], 0, (qty+7)/8);
-
+        txBuf[3] = 0;
         for (int i=0; i<qty; i++) {
             if (Coil_Read(start+i))
                 txBuf[3 + (i/8)] |= (1 << (i%8));
@@ -404,23 +399,11 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     txBuf[txLen++] = crc & 0xFF;
     txBuf[txLen++] = (crc >> 8) & 0xFF;
 
-    // Enable RS485 transmit
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
     HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
-
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-
 }
 
-
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
-{
-    if (huart->Instance == USART1)
-    {
-        Modbus_Handle(rxBuffer, Size);
-        HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-    }
-}
 
 
 /* USER CODE END 4 */

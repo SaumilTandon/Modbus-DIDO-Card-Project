@@ -57,6 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Relay_1_Pin GPIO_PIN_4
+#define Relay_1_GPIO_Port GPIOA
+#define Relay_2_Pin GPIO_PIN_5
+#define Relay_2_GPIO_Port GPIOA
+#define Relay_3_Pin GPIO_PIN_6
+#define Relay_3_GPIO_Port GPIOA
+#define Relay_4_Pin GPIO_PIN_7
+#define Relay_4_GPIO_Port GPIOA
 #define RS485_DE_RE_Pin GPIO_PIN_8
 #define RS485_DE_RE_GPIO_Port GPIOA
 

@@ -103,8 +103,14 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET); // RX mode
-  HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
+  txBuf[txLen++] = crc & 0xFF;
+  txBuf[txLen++] = (crc >> 8) & 0xFF;
+  uint16_t crc = Modbus_CRC16(txBuf, txLen);
+  // RS485 transmit enable
+  HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
+  HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
+  HAL_Delay(2); // small delay before switching back
+  HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
 
   /* USER CODE END 2 */
 
@@ -404,12 +410,9 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     txBuf[txLen++] = crc & 0xFF;
     txBuf[txLen++] = (crc >> 8) & 0xFF;
 
-    // Enable RS485 transmit
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
     HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
-
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-
 }
 
 

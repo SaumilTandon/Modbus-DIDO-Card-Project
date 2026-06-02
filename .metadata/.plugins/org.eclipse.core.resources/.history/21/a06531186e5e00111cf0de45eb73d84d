@@ -407,7 +407,7 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     // Enable RS485 transmit
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
     HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
-
+    HAL_Delay(2); // small delay before switching back
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
 
 }

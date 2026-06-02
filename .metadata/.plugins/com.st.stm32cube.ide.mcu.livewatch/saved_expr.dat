@@ -1,3 +1,4 @@
-adcValue
-txCounter
-lastByte
+adcValues[0]
+adcValues[1]
+adcValues[2]
+adcValues[3]
