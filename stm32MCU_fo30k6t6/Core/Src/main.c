@@ -50,6 +50,12 @@ UART_HandleTypeDef huart1;
 #define RX_BUFFER_SIZE 64
 uint8_t rxBuffer[RX_BUFFER_SIZE];
 
+uint16_t adcValue[4] ={0};
+void My_ADC_Init(void);
+static HAL_StatusTypeDef My_ADC_ConfigChannel(uint32_t channel);
+uint16_t My_ADC_Read(uint32_t channel);
+
+
 #define NUM_COILS 4
 uint8_t coilStatus[NUM_COILS] = {0};
 uint16_t coilPinMap[NUM_COILS] = {Relay_1_Pin, Relay_2_Pin, Relay_3_Pin, Relay_4_Pin};
@@ -62,6 +68,7 @@ static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
+uint16_t Analog_Read(uint32_t channel);
 
 /* USER CODE END PFP */
 
@@ -102,6 +109,7 @@ int main(void)
   MX_ADC_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  My_ADC_Init();
 
   HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET); // RX mode
   HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
@@ -115,6 +123,19 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+	          adcValue[0] = My_ADC_Read(ADC_CHANNEL_0); // PA0
+	  	      HAL_Delay(300);
+
+	  	      adcValue[1] = My_ADC_Read(ADC_CHANNEL_1); // PA1
+	  	      HAL_Delay(300);
+
+	  	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_2); // PA2
+	  	      HAL_Delay(300);
+
+
+
+
   }
   /* USER CODE END 3 */
 }
@@ -337,6 +358,43 @@ uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len)
 
 
 
+
+
+
+
+
+void My_ADC_Init(void)
+{
+    MX_ADC_Init();                       // CubeMX generated init
+    HAL_ADCEx_Calibration_Start(&hadc);  // Add calibration step
+}
+
+static HAL_StatusTypeDef My_ADC_ConfigChannel(uint32_t channel)
+{
+    ADC_ChannelConfTypeDef sConfig = {0};
+    sConfig.Channel = channel;
+    sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+    sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
+    return HAL_ADC_ConfigChannel(&hadc, &sConfig);
+}
+
+uint16_t My_ADC_Read(uint32_t channel)
+{
+    if (My_ADC_ConfigChannel(channel) != HAL_OK)
+        return 0;
+
+    HAL_ADC_Start(&hadc);
+    HAL_ADC_PollForConversion(&hadc, HAL_MAX_DELAY);
+    uint16_t value = HAL_ADC_GetValue(&hadc);
+    HAL_ADC_Stop(&hadc);
+
+    return value;
+}
+
+
+
+
+
 void Coil_Write(uint8_t coilIndex, uint8_t value)
 {
     if (coilIndex < NUM_COILS) {
@@ -400,6 +458,29 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
         txLen = 6;
     }
 
+    else if (func == 0x04) { // Read Input Registers
+        uint16_t start = (frame[2] << 8) | frame[3];
+        uint16_t qty   = (frame[4] << 8) | frame[5];
+
+        txBuf[0] = frame[0];
+        txBuf[1] = func;
+        txBuf[2] = qty * 2; // byte count
+
+        for (int i=0; i<qty; i++) {
+            uint16_t val = 0;
+            switch (start+i) {
+            case 0: val = My_ADC_Read(ADC_CHANNEL_0); break;
+            case 1: val = My_ADC_Read(ADC_CHANNEL_1); break;
+            case 2: val = My_ADC_Read(ADC_CHANNEL_2); break;
+            case 3: val = My_ADC_Read(ADC_CHANNEL_3); break;
+
+            }
+            txBuf[3 + i*2] = (val >> 8) & 0xFF;
+            txBuf[4 + i*2] = val & 0xFF;
+        }
+        txLen = 3 + qty*2;
+    }
+
     uint16_t crc = Modbus_CRC16(txBuf, txLen);
     txBuf[txLen++] = crc & 0xFF;
     txBuf[txLen++] = (crc >> 8) & 0xFF;
@@ -411,6 +492,10 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
 
 }
+
+
+
+
 
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
