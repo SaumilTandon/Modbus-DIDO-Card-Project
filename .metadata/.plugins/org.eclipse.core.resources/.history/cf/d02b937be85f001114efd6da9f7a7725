@@ -48,22 +48,14 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 #define RX_BUFFER_SIZE 64
 uint8_t rxBuffer[RX_BUFFER_SIZE];
-uint8_t rxWorkBuf[RX_BUFFER_SIZE];  // safe working copy
-uint16_t rxWorkSize = 0;
-volatile uint8_t modbusFrameReady = 0;  // flag: main loop processes this
-volatile uint8_t txInProgress = 0;      // flag: ignore echo during TX
 
-uint16_t adcValue[4] = {0};
+uint16_t adcValue[4] = {0};   // store PA0–PA3 values
 
 #define NUM_COILS 4
 uint8_t coilStatus[NUM_COILS] = {0};
 uint16_t coilPinMap[NUM_COILS] = {Relay_1_Pin, Relay_2_Pin, Relay_3_Pin, Relay_4_Pin};
 GPIO_TypeDef* coilPortMap[NUM_COILS] = {Relay_1_GPIO_Port, Relay_2_GPIO_Port, Relay_3_GPIO_Port, Relay_4_GPIO_Port};
-
-
 /* USER CODE END PV */
-
-
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -72,7 +64,7 @@ static void MX_ADC_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void My_ADC_Init(void);
-
+static HAL_StatusTypeDef My_ADC_ConfigChannel(uint32_t channel);
 uint16_t My_ADC_Read(uint32_t channel);
 void Coil_Write(uint8_t coilIndex, uint8_t value);
 uint8_t Coil_Read(uint8_t coilIndex);
@@ -121,16 +113,6 @@ int main(void)
 
 
    HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-
-   HAL_Delay(500); // let things settle first
-
-   uint8_t beacon[] = {0xAA, 0x55, 0xAA, 0x55};
-   HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-   HAL_Delay(1);
-   HAL_UART_Transmit(&huart1, beacon, sizeof(beacon), 100);
-   HAL_Delay(2);
-   HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -140,27 +122,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (modbusFrameReady)
-	      {
-	          modbusFrameReady = 0;
-	          Modbus_Handle(rxWorkBuf, rxWorkSize);
-	      }
-
-	      // ADC sampling (correct channel order matching schematic)
-	      adcValue[0] = My_ADC_Read(ADC_CHANNEL_3); // AIN1 → PA3
-	      adcValue[1] = My_ADC_Read(ADC_CHANNEL_2); // AIN2 → PA2
-	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
-	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
-
-	      // Relay status (shadow array read - from previous fix)
-	      for (int i = 0; i < NUM_COILS; i++) {
-	          coilStatus[i] = Coil_Read(i);
-	      }
-
-	      HAL_Delay(100);
-
-
-
 
 	  GPIO_PinState state = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3);
 
@@ -175,7 +136,18 @@ int main(void)
 	      HAL_Delay(200);
 
 
+	  // Update Live Expressions
+	        adcValue[0] = My_ADC_Read(ADC_CHANNEL_0); // PA0
+	        adcValue[1] = My_ADC_Read(ADC_CHANNEL_1); // PA1
+	        adcValue[2] = My_ADC_Read(ADC_CHANNEL_2); // PA2
+	        adcValue[3] = My_ADC_Read(ADC_CHANNEL_3); // PA3
 
+	        // Relay status check (store coil states for Live Expressions)
+	        for (int i=0; i<NUM_COILS; i++) {
+	            coilStatus[i] = Coil_Read(i);
+	        }
+
+	        HAL_Delay(300);
   }
   /* USER CODE END 3 */
 }
@@ -384,7 +356,18 @@ void My_ADC_Init(void)
 	        Error_Handler();
 }
 
+static HAL_StatusTypeDef My_ADC_ConfigChannel(uint32_t channel)
+{
 
+	ADC1->CHSELR = 0x00000000;
+
+
+    ADC_ChannelConfTypeDef sConfig = {0};
+    sConfig.Channel = channel;
+    sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+    sConfig.SamplingTime = ADC_SAMPLETIME_55CYCLES_5;
+    return HAL_ADC_ConfigChannel(&hadc, &sConfig);
+}
 
 uint16_t My_ADC_Read(uint32_t channel)
 {
@@ -417,7 +400,8 @@ void Coil_Write(uint8_t coilIndex, uint8_t value)
 uint8_t Coil_Read(uint8_t coilIndex)
 {
     if (coilIndex < NUM_COILS) {
-        return coilStatus[coilIndex];  // Read shadow, not GPIO IDR
+        GPIO_PinState state = HAL_GPIO_ReadPin(coilPortMap[coilIndex], coilPinMap[coilIndex]);
+        return (state == GPIO_PIN_SET) ? 1 : 0;
     }
     return 0;
 }
@@ -487,10 +471,10 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
         for (int i=0; i<qty; i++) {
             uint16_t val = 0;
             switch (start+i) {
-            case 0: val = adcValue[0]; break;  // AIN1 (PA3) — already sampled in main
-            case 1: val = adcValue[1]; break;  // AIN2 (PA2)
-            case 2: val = adcValue[2]; break;  // AIN3 (PA1)
-            case 3: val = adcValue[3]; break;  // AIN4 (PA0)
+                case 0: val = My_ADC_Read(ADC_CHANNEL_3); break; // AIN1 (PA3)
+                case 1: val = My_ADC_Read(ADC_CHANNEL_2); break; // AIN2 (PA2)
+                case 2: val = My_ADC_Read(ADC_CHANNEL_1); break; // AIN3 (PA1)
+                case 3: val = My_ADC_Read(ADC_CHANNEL_0); break; // AIN4 (PA0)
 
             }
             txBuf[3 + i*2] = (val >> 8) & 0xFF;
@@ -500,43 +484,22 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     }
 
     uint16_t crc = Modbus_CRC16(txBuf, txLen);
-        txBuf[txLen++] = crc & 0xFF;
-        txBuf[txLen++] = (crc >> 8) & 0xFF;
+    txBuf[txLen++] = crc & 0xFF;
+    txBuf[txLen++] = (crc >> 8) & 0xFF;
 
-        txInProgress = 1;  // tell ISR to ignore echo
-
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-        HAL_Delay(1);  // DE settling time
-
-        HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
-
-        // Wait for last bit to physically leave the shift register
-        // 9600 baud = ~1.04ms/byte. txLen max ~12 bytes but guard generously
-        HAL_Delay(2);
-
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-        HAL_Delay(1);  // RE settling before we start listening again
-
-        txInProgress = 0;  // now safe to receive again
+    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
+    HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart->Instance == USART1)
     {
-        // TEMP TEST: respond immediately to anything received, no processing
-        uint8_t testResp[] = {0xDE, 0xAD, 0xBE, 0xEF};
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-        HAL_Delay(1);
-        HAL_UART_Transmit(&huart1, testResp, sizeof(testResp), 100);
-        HAL_Delay(2);
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-
+        Modbus_Handle(rxBuffer, Size);
         HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-        return;
     }
 }
-
 /* USER CODE END 4 */
 
 /**

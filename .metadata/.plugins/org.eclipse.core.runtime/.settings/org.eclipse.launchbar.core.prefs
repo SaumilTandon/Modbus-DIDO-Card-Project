@@ -7,3 +7,4 @@ org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:nucleo-l0101rb-dma/activeLaunch
 org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:nucleo-l0101rb-dma/activeLaunchTarget=null\:---
 org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:stm32MCU_fo30k6t6\ Debug/activeLaunchMode=debug
 org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:stm32MCU_fo30k6t6\ Debug/activeLaunchTarget=null\:---
+org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:stm32_f030k6t6_second2\ Debug/activeLaunchMode=debug

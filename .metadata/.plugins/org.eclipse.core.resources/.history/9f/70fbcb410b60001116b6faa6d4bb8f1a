@@ -121,16 +121,6 @@ int main(void)
 
 
    HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-
-   HAL_Delay(500); // let things settle first
-
-   uint8_t beacon[] = {0xAA, 0x55, 0xAA, 0x55};
-   HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-   HAL_Delay(1);
-   HAL_UART_Transmit(&huart1, beacon, sizeof(beacon), 100);
-   HAL_Delay(2);
-   HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -524,19 +514,24 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart->Instance == USART1)
     {
-        // TEMP TEST: respond immediately to anything received, no processing
-        uint8_t testResp[] = {0xDE, 0xAD, 0xBE, 0xEF};
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-        HAL_Delay(1);
-        HAL_UART_Transmit(&huart1, testResp, sizeof(testResp), 100);
-        HAL_Delay(2);
-        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
+        if (txInProgress)
+        {
+            // This is our own TX echo — discard it, just re-arm
+            HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
+            return;
+        }
 
+        if (!modbusFrameReady)  // don't overwrite if main loop hasn't processed yet
+        {
+            memcpy(rxWorkBuf, rxBuffer, Size);
+            rxWorkSize = Size;
+            modbusFrameReady = 1;
+        }
+
+        // Re-arm immediately so we don't miss the next frame
         HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-        return;
     }
 }
-
 /* USER CODE END 4 */
 
 /**
