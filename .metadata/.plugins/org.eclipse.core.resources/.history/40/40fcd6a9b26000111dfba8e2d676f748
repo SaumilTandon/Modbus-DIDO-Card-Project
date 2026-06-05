@@ -68,8 +68,7 @@ GPIO_TypeDef* coilPortMap[NUM_COILS] = {Relay_1_GPIO_Port, Relay_2_GPIO_Port,
 
 // Input circuit: 10k divider + 1k series → active HIGH (signal = HIGH)
 #define NUM_DIN 4
-volatile uint8_t dinLatch[NUM_DIN] = {0}; // stays 1 until Modbus reads it
-
+uint8_t      dinStatus[NUM_DIN] = {0};      // live state, refreshed in main loop
 uint16_t     dinPinMap[NUM_DIN]  = {Digital_Input_1_Pin, Digital_Input_2_Pin,
                                      Digital_Input_3_Pin, Digital_Input_4_Pin};
 GPIO_TypeDef* dinPortMap[NUM_DIN] = {Digital_Input_1_GPIO_Port, Digital_Input_2_GPIO_Port,
@@ -96,7 +95,6 @@ void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
 void     Coil_Write(uint8_t coilIndex, uint8_t value);
 uint8_t  Coil_Read(uint8_t coilIndex);
-void     DIn_SendDebug(uint8_t dinIndex);
 uint8_t  DIn_Read(uint8_t dinIndex);
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len);
 void     Modbus_Handle(uint8_t *frame, uint16_t size);
@@ -176,19 +174,15 @@ int main(void)
 	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
 	      // ── 3. Read all digital inputs ──────────────────────────────────────────
-	      for (int i = 0; i < NUM_DIN; i++) {
-	     	          if (DIn_Read(i) && !dinLatch[i]) { // only trigger on fresh press
-	     	              dinLatch[i] = 1;
-	     	              DIn_SendDebug(i);              // send message to CoolTerm immediately
-	     	          }
-	      }
+	      for (int i = 0; i < NUM_DIN; i++)
+	        dinStatus[i] = DIn_Read(i);
+
 	      // ── 4. Refresh relay shadow register (for Live Expressions) ─────────────
 	      for (int i = 0; i < NUM_COILS; i++)
 	        coilStatus[i] = Coil_Read(i);
 
 	      // No HAL_Delay here — ADC reads already take ~1ms total,
 	      // keeping the loop fast so Modbus frames are processed promptly.
-
 
   }
   /* USER CODE END 3 */
@@ -447,31 +441,7 @@ uint8_t DIn_Read(uint8_t dinIndex)
   return 0;
 }
 
-void DIn_SendDebug(uint8_t dinIndex)
-{
-    // Human-readable messages for each digital input
-    const char* msgs[NUM_DIN] = {
-        "DIN1: Button Pressed\r\n",
-        "DIN2: Button Pressed\r\n",
-        "DIN3: Button Pressed\r\n",
-        "DIN4: Button Pressed\r\n"
-    };
 
-    if (dinIndex >= NUM_DIN) return;
-
-    const char* msg = msgs[dinIndex];
-    uint16_t len = strlen(msg);
-
-    // Use same DE/RE toggle as Modbus TX
-    txInProgress = 1;
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-    HAL_Delay(1);
-    HAL_UART_Transmit(&huart1, (uint8_t*)msg, len, 100);
-    HAL_Delay(2);
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1);
-    txInProgress = 0;
-}
 
 
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len)
@@ -551,11 +521,8 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
        memset(&txBuf[3], 0, txBuf[2]);
 
        for (int i = 0; i < (int)qty; i++) {
-           if (dinLatch[start + i]) {
-               txBuf[3 + (i / 8)] |= (1 << (i % 8));
-               dinLatch[start + i] = 0; // clear after reading — auto resets
-           }
-
+         if (DIn_Read(start + i))
+           txBuf[3 + (i / 8)] |= (1 << (i % 8));
        }
        txLen = 3 + txBuf[2];
      }

@@ -96,7 +96,6 @@ void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
 void     Coil_Write(uint8_t coilIndex, uint8_t value);
 uint8_t  Coil_Read(uint8_t coilIndex);
-void     DIn_SendDebug(uint8_t dinIndex);
 uint8_t  DIn_Read(uint8_t dinIndex);
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len);
 void     Modbus_Handle(uint8_t *frame, uint16_t size);

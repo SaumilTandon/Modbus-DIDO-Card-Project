@@ -46,39 +46,20 @@ ADC_HandleTypeDef hadc;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+#define RX_BUFFER_SIZE 64
+uint8_t rxBuffer[RX_BUFFER_SIZE];
+uint8_t rxWorkBuf[RX_BUFFER_SIZE];  // safe working copy
+uint16_t rxWorkSize = 0;
+volatile uint8_t modbusFrameReady = 0;  // flag: main loop processes this
+volatile uint8_t txInProgress = 0;      // flag: ignore echo during TX
 
-
-#define RX_BUFFER_SIZE    64
-#define MODBUS_SLAVE_ADDR 0x01
-
-uint8_t          rxBuffer[RX_BUFFER_SIZE];
-uint8_t          rxWorkBuf[RX_BUFFER_SIZE]; // safe copy made inside ISR
-uint16_t         rxWorkSize   = 0;
-volatile uint8_t modbusFrameReady = 0;      // set by ISR, cleared by main loop
-volatile uint8_t txInProgress     = 0;      // blocks ISR from treating echo as data
-
+uint16_t adcValue[4] = {0};
 
 #define NUM_COILS 4
-uint8_t      coilStatus[NUM_COILS] = {0};   // shadow register — truth for relay state
-uint16_t     coilPinMap[NUM_COILS]  = {Relay_1_Pin,      Relay_2_Pin,
-                                        Relay_3_Pin,      Relay_4_Pin};
-GPIO_TypeDef* coilPortMap[NUM_COILS] = {Relay_1_GPIO_Port, Relay_2_GPIO_Port,
-                                         Relay_3_GPIO_Port, Relay_4_GPIO_Port};
+uint8_t coilStatus[NUM_COILS] = {0};
+uint16_t coilPinMap[NUM_COILS] = {Relay_1_Pin, Relay_2_Pin, Relay_3_Pin, Relay_4_Pin};
+GPIO_TypeDef* coilPortMap[NUM_COILS] = {Relay_1_GPIO_Port, Relay_2_GPIO_Port, Relay_3_GPIO_Port, Relay_4_GPIO_Port};
 
-
-// Input circuit: 10k divider + 1k series → active HIGH (signal = HIGH)
-#define NUM_DIN 4
-volatile uint8_t dinLatch[NUM_DIN] = {0}; // stays 1 until Modbus reads it
-
-uint16_t     dinPinMap[NUM_DIN]  = {Digital_Input_1_Pin, Digital_Input_2_Pin,
-                                     Digital_Input_3_Pin, Digital_Input_4_Pin};
-GPIO_TypeDef* dinPortMap[NUM_DIN] = {Digital_Input_1_GPIO_Port, Digital_Input_2_GPIO_Port,
-                                      Digital_Input_3_GPIO_Port, Digital_Input_4_GPIO_Port};
-
-
-// ── ADC ─────────────────────────────────────────────────────────────────────
-// AIN1→PA3 AIN2→PA2 AIN3→PA1 AIN4→PA0  (schematic page 2)
-uint16_t adcValue[4] = {0};
 
 /* USER CODE END PV */
 
@@ -90,18 +71,13 @@ static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
+void My_ADC_Init(void);
 
-
-void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
-void     Coil_Write(uint8_t coilIndex, uint8_t value);
-uint8_t  Coil_Read(uint8_t coilIndex);
-void     DIn_SendDebug(uint8_t dinIndex);
-uint8_t  DIn_Read(uint8_t dinIndex);
+void Coil_Write(uint8_t coilIndex, uint8_t value);
+uint8_t Coil_Read(uint8_t coilIndex);
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len);
-void     Modbus_Handle(uint8_t *frame, uint16_t size);
-
-
+void Modbus_Handle(uint8_t *frame, uint16_t size);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -141,9 +117,9 @@ int main(void)
   MX_ADC_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  My_ADC_Init(); // ADC self-calibration
+  My_ADC_Init();   // run calibration
 
-   // Arm UART receiver — must be called once before the main loop
+
    HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
 
 
@@ -157,38 +133,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  /* USER CODE BEGIN 3 */
+	  if (modbusFrameReady)
+	     {
+	         modbusFrameReady = 0;
+	         Modbus_Handle(rxWorkBuf, rxWorkSize);
+	     }
 
-	      // ── 1. Process any received Modbus frame ────────────────────────────────
-	      // Modbus_Handle runs here in main context, never inside the ISR.
-	      // This avoids blocking the ISR with UART TX and ADC reads.
-	      if (modbusFrameReady)
-	      {
-	        modbusFrameReady = 0;
-	        Modbus_Handle(rxWorkBuf, rxWorkSize);
-	      }
+	     adcValue[0] = My_ADC_Read(ADC_CHANNEL_3); // AIN1 → PA3
+	     adcValue[1] = My_ADC_Read(ADC_CHANNEL_2); // AIN2 → PA2
+	     adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
+	     adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
-	      // ── 2. Sample all four ADC channels ─────────────────────────────────────
-	      // Correct order matches schematic: AIN1=PA3 … AIN4=PA0
-	      adcValue[0] = My_ADC_Read(ADC_CHANNEL_3); // AIN1 → PA3
-	      adcValue[1] = My_ADC_Read(ADC_CHANNEL_2); // AIN2 → PA2
-	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
-	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
+	     for (int i = 0; i < NUM_COILS; i++)
+	         coilStatus[i] = Coil_Read(i);
 
-	      // ── 3. Read all digital inputs ──────────────────────────────────────────
-	      for (int i = 0; i < NUM_DIN; i++) {
-	     	          if (DIn_Read(i) && !dinLatch[i]) { // only trigger on fresh press
-	     	              dinLatch[i] = 1;
-	     	              DIn_SendDebug(i);              // send message to CoolTerm immediately
-	     	          }
-	      }
-	      // ── 4. Refresh relay shadow register (for Live Expressions) ─────────────
-	      for (int i = 0; i < NUM_COILS; i++)
-	        coilStatus[i] = Coil_Read(i);
-
-	      // No HAL_Delay here — ADC reads already take ~1ms total,
-	      // keeping the loop fast so Modbus frames are processed promptly.
-
+	     // Button read — no HAL_Delay needed here
 
   }
   /* USER CODE END 3 */
@@ -436,44 +395,6 @@ uint8_t Coil_Read(uint8_t coilIndex)
     return 0;
 }
 
-// ── Digital inputs ───────────────────────────────────────────────────────────
-// Active HIGH: signal applied → HIGH → returns 1
-// Nothing connected → divider pulls LOW → returns 0
-
-uint8_t DIn_Read(uint8_t dinIndex)
-{
-  if (dinIndex < NUM_DIN)
-    return (HAL_GPIO_ReadPin(dinPortMap[dinIndex], dinPinMap[dinIndex]) == GPIO_PIN_SET) ? 1 : 0;
-  return 0;
-}
-
-void DIn_SendDebug(uint8_t dinIndex)
-{
-    // Human-readable messages for each digital input
-    const char* msgs[NUM_DIN] = {
-        "DIN1: Button Pressed\r\n",
-        "DIN2: Button Pressed\r\n",
-        "DIN3: Button Pressed\r\n",
-        "DIN4: Button Pressed\r\n"
-    };
-
-    if (dinIndex >= NUM_DIN) return;
-
-    const char* msg = msgs[dinIndex];
-    uint16_t len = strlen(msg);
-
-    // Use same DE/RE toggle as Modbus TX
-    txInProgress = 1;
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-    HAL_Delay(1);
-    HAL_UART_Transmit(&huart1, (uint8_t*)msg, len, 100);
-    HAL_Delay(2);
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1);
-    txInProgress = 0;
-}
-
-
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len)
 {
     uint16_t crc = 0xFFFF;
@@ -485,18 +406,17 @@ uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len)
                 crc ^= 0xA001;
             } else {
                 crc >>= 1;
-        }
+            }
         }
     }
     return crc;
 }
 
-
+#define MODBUS_SLAVE_ADDR 0x01
 
 void Modbus_Handle(uint8_t *frame, uint16_t size)
 {
-	// Minimum valid frame: addr + func + 2 data + 2 CRC = 6 bytes
-    if (size < 6) return;
+    if (size < 4) return;
 
     uint16_t crcCalc = Modbus_CRC16(frame, size-2);
     uint16_t crcRecv = frame[size-2] | (frame[size-1] << 8);
@@ -508,159 +428,83 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     uint8_t txBuf[32];
     uint16_t txLen = 0;
 
-
-    // ── FC01: Read Coils ───────────────────────────────────────────────────────
-     // Query:    01 01 00 00 00 04 3D C9
-     // Response: 01 01 01 <coil_byte> CRC_L CRC_H
-     //           coil_byte bit0=relay1 … bit3=relay4
-
-
     if (func == 0x01) { // Read Coils
         uint16_t start = (frame[2] << 8) | frame[3];
         uint16_t qty   = (frame[4] << 8) | frame[5];
-
-        if (qty > NUM_COILS) return; // sanity guard
-
         txBuf[0] = frame[0];
         txBuf[1] = func;
         txBuf[2] = (qty+7)/8;
-        memset(&txBuf[3], 0,  txBuf[2]);
+        memset(&txBuf[3], 0, (qty+7)/8);
 
-        for (int i=0; i< (int)qty; i++) {
+        for (int i=0; i<qty; i++) {
             if (Coil_Read(start+i))
                 txBuf[3 + (i/8)] |= (1 << (i%8));
         }
         txLen = 3 + txBuf[2];
     }
-
-
-        // ── FC02: Read Discrete Inputs ─────────────────────────────────────────────
-         // Query:    01 02 00 00 00 04 79 C9
-         // Response: 01 02 01 <din_byte> CRC_L CRC_H
-         //           din_byte bit0=DIN1 … bit3=DIN4
-    else if (func == 0x02)
-     {
-       uint16_t start = (frame[2] << 8) | frame[3];
-       uint16_t qty   = (frame[4] << 8) | frame[5];
-
-       if (qty > NUM_DIN) return; // sanity guard
-
-       txBuf[0] = frame[0];
-       txBuf[1] = func;
-       txBuf[2] = (qty + 7) / 8;   // byte count
-       memset(&txBuf[3], 0, txBuf[2]);
-
-       for (int i = 0; i < (int)qty; i++) {
-           if (dinLatch[start + i]) {
-               txBuf[3 + (i / 8)] |= (1 << (i % 8));
-               dinLatch[start + i] = 0; // clear after reading — auto resets
-           }
-
-       }
-       txLen = 3 + txBuf[2];
-     }
-
-
-
-    // ── FC04: Read Input Registers (ADC) ───────────────────────────────────────
-    // Query:    01 04 00 00 00 04 F1 C9
-    // Response: 01 04 08 HH LL HH LL HH LL HH LL CRC_L CRC_H
-    //           Register 0=AIN1(PA3) 1=AIN2(PA2) 2=AIN3(PA1) 3=AIN4(PA0)
-    else if (func == 0x04)
-    {
-      uint16_t start = (frame[2] << 8) | frame[3];
-      uint16_t qty   = (frame[4] << 8) | frame[5];
-
-      if (qty > 4) return; // sanity guard
-
-      txBuf[0] = frame[0];
-      txBuf[1] = func;
-      txBuf[2] = qty * 2; // byte count
-
-      for (int i = 0; i < (int)qty; i++) {
-        uint16_t val = 0;
-        switch (start + i) {
-          case 0: val = adcValue[0]; break; // AIN1 PA3
-          case 1: val = adcValue[1]; break; // AIN2 PA2
-          case 2: val = adcValue[2]; break; // AIN3 PA1
-          case 3: val = adcValue[3]; break; // AIN4 PA0
-          default: val = 0; break;
-        }
-        txBuf[3 + i * 2] = (val >> 8) & 0xFF; // high byte first (big-endian)
-        txBuf[4 + i * 2] =  val       & 0xFF;
-      }
-      txLen = 3 + qty * 2;
-    }
-
-
-    // ── FC05: Write Single Coil ────────────────────────────────────────────────
-      // Query ON:  01 05 00 00 FF 00 8C 3A   (coil 0 ON)
-      // Query OFF: 01 05 00 00 00 00 CD CA   (coil 0 OFF)
-      // Response echoes the request unchanged
-      else if (func == 0x05)
-      {
+    else if (func == 0x05) { // Write Single Coil
         uint16_t coil = (frame[2] << 8) | frame[3];
         uint16_t val  = (frame[4] << 8) | frame[5];
-
-        if (coil >= NUM_COILS) return; // sanity guard
-
         Coil_Write(coil, (val == 0xFF00) ? 1 : 0);
-        memcpy(txBuf, frame, 6); // echo first 6 bytes (addr+func+addr+val)
+        memcpy(txBuf, frame, 6);
         txLen = 6;
-      }
+    }
+    else if (func == 0x04) { // Read Input Registers
+        uint16_t start = (frame[2] << 8) | frame[3];
+        uint16_t qty   = (frame[4] << 8) | frame[5];
 
-      // Unknown function — nothing to transmit
-      else
-      {
-        return;
-      }
+        txBuf[0] = frame[0];
+        txBuf[1] = func;
+        txBuf[2] = qty * 2; // byte count
 
+        for (int i=0; i<qty; i++) {
+            uint16_t val = 0;
+            switch (start+i) {
+            case 0: val = adcValue[0]; break;  // AIN1 (PA3) — already sampled in main
+            case 1: val = adcValue[1]; break;  // AIN2 (PA2)
+            case 2: val = adcValue[2]; break;  // AIN3 (PA1)
+            case 3: val = adcValue[3]; break;  // AIN4 (PA0)
 
-    // ── Transmit response
+            }
+            txBuf[3 + i*2] = (val >> 8) & 0xFF;
+            txBuf[4 + i*2] = val & 0xFF;
+        }
+        txLen = 3 + qty*2;
+    }
 
     uint16_t crc = Modbus_CRC16(txBuf, txLen);
-    txBuf[txLen++] = crc & 0xFF;
-    txBuf[txLen++] = (crc >> 8) & 0xFF;
+        txBuf[txLen++] = crc & 0xFF;
+        txBuf[txLen++] = (crc >> 8) & 0xFF;
 
-    txInProgress = 1; // ISR will discard any echo bytes during TX
+        txInProgress = 1;  // tell ISR to ignore echo
 
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
-    HAL_Delay(1);                                          // DE settling time (~1 bit period)
-    HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
-    HAL_Delay(2);                                          // let last stop bit leave shift register
-    HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1);                                          // RE settling before listening again
+        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
+        HAL_Delay(1);  // DE settling time
 
-    txInProgress = 0; // safe to receive again
-  }
+        HAL_UART_Transmit(&huart1, txBuf, txLen, HAL_MAX_DELAY);
 
+        // Wait for last bit to physically leave the shift register
+        // 9600 baud = ~1.04ms/byte. txLen max ~12 bytes but guard generously
+        HAL_Delay(2);
 
-// ── UART ISR callback ─────────────────────────────────────────────────────────
-// Fires when UART goes idle after receiving bytes (ReceiveToIdle mode).
-// Keep this SHORT — just copy buffer and set flag, let main loop process it.
+        HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
+        HAL_Delay(1);  // RE settling before we start listening again
+
+        txInProgress = 0;  // now safe to receive again
+}
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-  if (huart->Instance == USART1)
-  {
-    if (txInProgress)
+    if (huart->Instance == USART1)
     {
-      // Own TX echo received — discard silently, re-arm and return
-      HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-      return;
+        if (!txInProgress && Size >= 6)
+        {
+            memcpy(rxWorkBuf, rxBuffer, Size);
+            rxWorkSize   = Size;
+            modbusFrameReady = 1;
+        }
+        HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
     }
-
-    // Minimum Modbus frame = 6 bytes (addr+func+2data+2crc)
-    if (!modbusFrameReady && Size >= 6)
-    {
-      memcpy(rxWorkBuf, rxBuffer, Size);
-      rxWorkSize       = Size;
-      modbusFrameReady = 1;
-    }
-
-    // Always re-arm — must not miss the next frame
-    HAL_UARTEx_ReceiveToIdle_IT(&huart1, rxBuffer, RX_BUFFER_SIZE);
-  }
 }
 /* USER CODE END 4 */
 
