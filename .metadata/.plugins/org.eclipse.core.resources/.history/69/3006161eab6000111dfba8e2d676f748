@@ -134,20 +134,40 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if (modbusFrameReady)
-	     {
-	         modbusFrameReady = 0;
-	         Modbus_Handle(rxWorkBuf, rxWorkSize);
-	     }
+	      {
+	          modbusFrameReady = 0;
+	          Modbus_Handle(rxWorkBuf, rxWorkSize);
+	      }
 
-	     adcValue[0] = My_ADC_Read(ADC_CHANNEL_3); // AIN1 → PA3
-	     adcValue[1] = My_ADC_Read(ADC_CHANNEL_2); // AIN2 → PA2
-	     adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
-	     adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
+	      // ADC sampling (correct channel order matching schematic)
+	      adcValue[0] = My_ADC_Read(ADC_CHANNEL_3); // AIN1 → PA3
+	      adcValue[1] = My_ADC_Read(ADC_CHANNEL_2); // AIN2 → PA2
+	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
+	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
-	     for (int i = 0; i < NUM_COILS; i++)
-	         coilStatus[i] = Coil_Read(i);
+	      // Relay status (shadow array read - from previous fix)
+	      for (int i = 0; i < NUM_COILS; i++) {
+	          coilStatus[i] = Coil_Read(i);
+	      }
 
-	     // Button read — no HAL_Delay needed here
+	      HAL_Delay(100);
+
+
+
+
+	  GPIO_PinState state = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3);
+
+	      if (state == GPIO_PIN_RESET) {
+	          // Button pressed
+	          printf("1\r\n");
+	      } else {
+	          // Button not pressed
+	          printf("0\r\n");
+	      }
+
+	      HAL_Delay(200);
+
+
 
   }
   /* USER CODE END 3 */

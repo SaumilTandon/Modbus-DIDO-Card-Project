@@ -148,7 +148,7 @@ int main(void)
 	         coilStatus[i] = Coil_Read(i);
 
 	     // Button read — no HAL_Delay needed here
-
+	     GPIO_PinState state = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3);
   }
   /* USER CODE END 3 */
 }
