@@ -98,7 +98,8 @@ void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
 void     Coil_Write(uint8_t coilIndex, uint8_t value);
 uint8_t  Coil_Read(uint8_t coilIndex);
-void Status_SendDebug(void);   // replaces ADC_SendDebug + DIn_SendDebug
+void     DIn_SendDebug(uint8_t dinIndex);
+
 uint8_t  DIn_Read(uint8_t dinIndex);
 uint16_t Modbus_CRC16(uint8_t *buf, uint16_t len);
 void     Modbus_Handle(uint8_t *frame, uint16_t size);
@@ -178,22 +179,16 @@ int main(void)
 	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
 
-	      // ── 3. Update digital input latch (for Modbus FC02) ─────────────────────────
+	      // ── 3. Read all digital inputs ──────────────────────────────────────────
 	      for (int i = 0; i < NUM_DIN; i++) {
-	          if (DIn_Read(i)) dinLatch[i] = 1;   // set on HIGH; FC02 clears it
+	     	          if (DIn_Read(i) && !dinLatch[i]) { // only trigger on fresh press
+	     	              dinLatch[i] = 1;
+	     	              DIn_SendDebug(i);              // send message to CoolTerm immediately
+	     	          }
 	      }
-
-	      // ── 4. Refresh relay shadow ──────────────────────────────────────────────────
+	      // ── 4. Refresh relay shadow register (for Live Expressions) ─────────────
 	      for (int i = 0; i < NUM_COILS; i++)
-	          coilStatus[i] = Coil_Read(i);
-
-	      // ── 5. Print combined status every 500 ms ────────────────────────────────────
-	      static uint32_t lastPrint = 0;
-	      if (HAL_GetTick() - lastPrint >= 500)
-	      {
-	          lastPrint = HAL_GetTick();
-	          Status_SendDebug();
-	      }
+	        coilStatus[i] = Coil_Read(i);
 
 	      // No HAL_Delay here — ADC reads already take ~1ms total,
 	      // keeping the loop fast so Modbus frames are processed promptly.
@@ -456,23 +451,32 @@ uint8_t DIn_Read(uint8_t dinIndex)
   return 0;
 }
 
-void Status_SendDebug(void)
+void DIn_SendDebug(uint8_t dinIndex)
 {
-    char buf[80];
-    int len = snprintf(buf, sizeof(buf),
-        "D1:%d D2:%d D3:%d D4:%d | A1:%4d A2:%4d A3:%4d A4:%4d\r\n",
-        DIn_Read(0), DIn_Read(1), DIn_Read(2), DIn_Read(3),
-        adcValue[0], adcValue[1], adcValue[2], adcValue[3]);
+    // Human-readable messages for each digital input
+    const char* msgs[NUM_DIN] = {
+        "DIN1: Button Pressed\r\n",
+        "DIN2: Button Pressed\r\n",
+        "DIN3: Button Pressed\r\n",
+        "DIN4: Button Pressed\r\n"
+    };
 
+    if (dinIndex >= NUM_DIN) return;
+
+    const char* msg = msgs[dinIndex];
+    uint16_t len = strlen(msg);
+
+    // Use same DE/RE toggle as Modbus TX
     txInProgress = 1;
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
     HAL_Delay(1);
-    HAL_UART_Transmit(&huart1, (uint8_t*)buf, (uint16_t)len, 100);
+    HAL_UART_Transmit(&huart1, (uint8_t*)msg, len, 100);
     HAL_Delay(2);
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_RESET);
     HAL_Delay(1);
     txInProgress = 0;
 }
+
 
 
 

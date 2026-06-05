@@ -177,7 +177,8 @@ int main(void)
 	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
 	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
-
+	      // Print ADC values to CoolTerm every 500ms
+	      static uint32_t lastADCPrint = 0;
 	      // ── 3. Update digital input latch (for Modbus FC02) ─────────────────────────
 	      for (int i = 0; i < NUM_DIN; i++) {
 	          if (DIn_Read(i)) dinLatch[i] = 1;   // set on HIGH; FC02 clears it
