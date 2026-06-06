@@ -93,7 +93,7 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 
-uint16_t ADC_To_WindSpeed(uint16_t adc_raw);   // Windspeed check
+
 
 void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);

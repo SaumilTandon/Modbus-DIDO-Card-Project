@@ -80,7 +80,7 @@ GPIO_TypeDef* dinPortMap[NUM_DIN] = {Digital_Input_1_GPIO_Port, Digital_Input_2_
 // AIN1→PA3 AIN2→PA2 AIN3→PA1 AIN4→PA0  (schematic page 2)
 uint16_t adcValue[4] = {0};
 uint16_t windSpeed_kmph = 0;
-
+uint16_t ADC_To_WindSpeed(uint16_t adc_raw);
 /* USER CODE END PV */
 
 
@@ -93,7 +93,7 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 
-uint16_t ADC_To_WindSpeed(uint16_t adc_raw);   // Windspeed check
+
 
 void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
@@ -522,7 +522,7 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     if (frame[0] != MODBUS_SLAVE_ADDR) return;
 
     uint8_t func = frame[1];
-    uint8_t txBuf[34];
+    uint8_t txBuf[32];
     uint16_t txLen = 0;
 
 

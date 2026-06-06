@@ -79,7 +79,6 @@ GPIO_TypeDef* dinPortMap[NUM_DIN] = {Digital_Input_1_GPIO_Port, Digital_Input_2_
 // ── ADC ─────────────────────────────────────────────────────────────────────
 // AIN1→PA3 AIN2→PA2 AIN3→PA1 AIN4→PA0  (schematic page 2)
 uint16_t adcValue[4] = {0};
-uint16_t windSpeed_kmph = 0;
 
 /* USER CODE END PV */
 
@@ -93,7 +92,7 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 
-uint16_t ADC_To_WindSpeed(uint16_t adc_raw);   // Windspeed check
+
 
 void     My_ADC_Init(void);
 uint16_t My_ADC_Read(uint32_t channel);
@@ -178,7 +177,7 @@ int main(void)
 	      adcValue[2] = My_ADC_Read(ADC_CHANNEL_1); // AIN3 → PA1
 	      adcValue[3] = My_ADC_Read(ADC_CHANNEL_0); // AIN4 → PA0
 
-	      windSpeed_kmph = ADC_To_WindSpeed(adcValue[0]);
+
 	      // ── 3. Update digital input latch (for Modbus FC02) ─────────────────────────
 	      for (int i = 0; i < NUM_DIN; i++) {
 	          if (DIn_Read(i)) dinLatch[i] = 1;   // set on HIGH; FC02 clears it
@@ -446,19 +445,6 @@ uint8_t Coil_Read(uint8_t coilIndex)
     return 0;
 }
 
-
-#define ADC_AT_4MA    589    // calibrate if readings drift
-#define ADC_AT_20MA   2943
-
-uint16_t ADC_To_WindSpeed(uint16_t adc_raw)
-{
-    if (adc_raw <= ADC_AT_4MA)  return 0;
-    if (adc_raw >= ADC_AT_20MA) return 250;
-    return (uint16_t)(((uint32_t)(adc_raw - ADC_AT_4MA) * 250UL)
-                       / (ADC_AT_20MA - ADC_AT_4MA));
-}
-// ─
-
 // ── Digital inputs ───────────────────────────────────────────────────────────
 // Active HIGH: signal applied → HIGH → returns 1
 // Nothing connected → divider pulls LOW → returns 0
@@ -472,12 +458,11 @@ uint8_t DIn_Read(uint8_t dinIndex)
 
 void Status_SendDebug(void)
 {
-    char buf[96];
+    char buf[80];
     int len = snprintf(buf, sizeof(buf),
-        "D1:%d D2:%d D3:%d D4:%d | A1:%4d A2:%4d A3:%4d A4:%4d | Wind:%3d km/h\r\n",
+        "D1:%d D2:%d D3:%d D4:%d | A1:%4d A2:%4d A3:%4d A4:%4d\r\n",
         DIn_Read(0), DIn_Read(1), DIn_Read(2), DIn_Read(3),
-        adcValue[0], adcValue[1], adcValue[2], adcValue[3],
-        windSpeed_kmph);
+        adcValue[0], adcValue[1], adcValue[2], adcValue[3]);
 
     txInProgress = 1;
     HAL_GPIO_WritePin(RS485_DE_RE_GPIO_Port, RS485_DE_RE_Pin, GPIO_PIN_SET);
@@ -522,7 +507,7 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
     if (frame[0] != MODBUS_SLAVE_ADDR) return;
 
     uint8_t func = frame[1];
-    uint8_t txBuf[34];
+    uint8_t txBuf[32];
     uint16_t txLen = 0;
 
 
@@ -588,7 +573,7 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
       uint16_t start = (frame[2] << 8) | frame[3];
       uint16_t qty   = (frame[4] << 8) | frame[5];
 
-      if (qty > 5) return; // sanity guard
+      if (qty > 4) return; // sanity guard
 
       txBuf[0] = frame[0];
       txBuf[1] = func;
@@ -601,7 +586,6 @@ void Modbus_Handle(uint8_t *frame, uint16_t size)
           case 1: val = adcValue[1]; break; // AIN2 PA2
           case 2: val = adcValue[2]; break; // AIN3 PA1
           case 3: val = adcValue[3]; break; // AIN4 PA0
-          case 4: val = windSpeed_kmph; break;    // ← ADD: wind speed in km/h
           default: val = 0; break;
         }
         txBuf[3 + i * 2] = (val >> 8) & 0xFF; // high byte first (big-endian)
