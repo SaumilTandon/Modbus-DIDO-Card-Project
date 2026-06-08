@@ -6,8 +6,12 @@
 		<item key="wholeword" value="false"/>
 		<item key="incremental" value="false"/>
 		<item key="isRegEx" value="false"/>
-		<item key="selection" value="GPIO_InitStruct.Pin"/>
+		<item key="selection" value="txBuf"/>
 		<list key="findhistory">
+			<item value="txBuf"/>
+			<item value="fc04"/>
+			<item value="ADC_To"/>
+			<item value="ADC_"/>
 			<item value="GPIO_InitStruct.Pin"/>
 			<item value="IDLE"/>
 			<item value="  HAL_UART_Receive_DMA(&amp;hlpuart1, (uint8_t *)rxBuffer, RX_BUFFER_SIZE);"/>
@@ -16,7 +20,7 @@
 		</list>
 	</section>
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog_dialogBounds">
-		<item key="DIALOG_X_ORIGIN" value="1516"/>
+		<item key="DIALOG_X_ORIGIN" value="1515"/>
 		<item key="DIALOG_Y_ORIGIN" value="107"/>
 		<item key="DIALOG_WIDTH" value="414"/>
 		<item key="DIALOG_HEIGHT" value="454"/>
