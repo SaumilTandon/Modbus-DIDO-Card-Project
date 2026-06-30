@@ -182,7 +182,28 @@ int main(void)
 	          {
 	              rx_buffer[index] = '\0';
 
-	              process_command(rx_buffer);
+	              if(strcmp(rx_buffer, "PING\r") == 0)
+	              {
+	                  uart_print("PONG\r\n");
+	              }
+
+	              else if(strcmp(rx_buffer, "GET_STATUS\r") == 0)
+	              {
+	                  uart_print("SX1262_OK\r\n");
+	              }
+
+	              else if(strcmp(rx_buffer, "GET_CONFIG\r") == 0)
+	              {
+	                  uart_print("SF=9\r\n");
+	                  uart_print("BW=125000\r\n");
+	                  uart_print("FREQ=865062500\r\n");
+	                  uart_print("POWER=22\r\n");
+	              }
+
+	              else
+	              {
+	                  uart_print("UNKNOWN_COMMAND\r\n");
+	              }
 
 	              index = 0;
 	          }
@@ -382,37 +403,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void process_command(char *cmd)
-{
-    if(strcmp(cmd,"PING\r")==0)
-    {
-        uart_print("PONG\r\n");
-    }
 
-    else if(strcmp(cmd,"GET_STATUS\r")==0)
-    {
-        char tx[40];
-
-        sprintf(tx,
-                "STATUS=0x%02X\r\n",
-                sx1262_get_status());
-
-        uart_print(tx);
-    }
-
-    else if(strcmp(cmd,"GET_CONFIG\r")==0)
-    {
-        uart_print("SF=9\r\n");
-        uart_print("BW=125000\r\n");
-        uart_print("FREQ=865062500\r\n");
-        uart_print("POWER=22\r\n");
-    }
-
-    else
-    {
-        uart_print("UNKNOWN_COMMAND\r\n");
-    }
-}
 /* USER CODE END 4 */
 
 /**
