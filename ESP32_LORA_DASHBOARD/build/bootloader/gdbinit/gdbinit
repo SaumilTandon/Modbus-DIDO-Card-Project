@@ -1,0 +1,2 @@
+source D:/Project Folder DYULABS/ESP32_LORA_DASHBOARD/build/bootloader/gdbinit/symbols
+source D:/Project Folder DYULABS/ESP32_LORA_DASHBOARD/build/bootloader/gdbinit/connect

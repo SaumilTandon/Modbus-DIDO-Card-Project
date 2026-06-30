@@ -6,8 +6,15 @@
 		<item key="wholeword" value="false"/>
 		<item key="incremental" value="false"/>
 		<item key="isRegEx" value="false"/>
-		<item key="selection" value="txBuf"/>
+		<item key="selection" value="sx126x_mod_params_lora_t"/>
 		<list key="findhistory">
+			<item value="sx126x_mod_params_lora_t"/>
+			<item value="static volatile bool tx_done = false;"/>
+			<item value="misc_sx126x_irq_cb"/>
+			<item value="bool misc_sx126x_hal_deinit"/>
+			<item value="bool misc_sx126x_hal_deinit()"/>
+			<item value="Writepin"/>
+			<item value="HAL_GPIO_WritePin(SX1262_NSS_GPIO_Port,&#x0A;                  SX1262_NSS_Pin,&#x0A;GPIO_PIN_RESET);"/>
 			<item value="txBuf"/>
 			<item value="fc04"/>
 			<item value="ADC_To"/>

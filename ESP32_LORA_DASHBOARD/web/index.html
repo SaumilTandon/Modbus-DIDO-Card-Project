@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DYULABS — LoRa Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0B0F1A;
+    --card:       #141A27;
+    --card-alt:   #1A2235;
+    --border:     #1F2D45;
+    --amber:      #F59E0B;
+    --amber-dim:  #92600A;
+    --amber-glow: rgba(245,158,11,0.15);
+    --green:      #10B981;
+    --green-dim:  #065F46;
+    --red:        #EF4444;
+    --red-dim:    #7F1D1D;
+    --blue:       #3B82F6;
+    --text-1:     #E8EDF5;
+    --text-2:     #8A9BB5;
+    --text-3:     #4B607E;
+    --mono:       'Space Mono', monospace;
+    --sans:       'Inter', sans-serif;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding-bottom: 3rem;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Header ── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(11,15,26,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 1.25rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .header-logo {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header-logo svg { display: block; }
+
+  .header-title {
+    font-family: var(--mono);
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+
+  .header-title span {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 400;
+    color: var(--text-2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .header-ip {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-3);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.875rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-alt);
+  }
+
+  .card-header-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+
+  .card-body { padding: 1.1rem; }
+
+  /* ── Status Section ── */
+  .status-grid {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(31,45,69,0.6);
+  }
+
+  .status-row:last-child { border-bottom: none; }
+
+  .status-label {
+    font-size: 0.8125rem;
+    color: var(--text-2);
+    font-weight: 400;
+  }
+
+  .status-val {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  /* LED dot */
+  .led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .led-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .led-amber  { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .led-red    { background: var(--red);   box-shadow: 0 0 6px var(--red);   }
+  .led-grey   { background: var(--text-3); box-shadow: none; }
+
+  /* Pulse for connected */
+  .led-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid var(--green);
+    opacity: 0;
+    animation: ledPulse 2s ease-out infinite;
+  }
+
+  @keyframes ledPulse {
+    0%   { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(2.0); opacity: 0;   }
+  }
+
+  .text-green  { color: var(--green); }
+  .text-amber  { color: var(--amber); }
+  .text-red    { color: var(--red);   }
+  .text-grey   { color: var(--text-3); }
+
+  .last-update {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-3);
+    margin-top: 0.75rem;
+    text-align: right;
+  }
+
+  /* ── Form Elements ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-2);
+    letter-spacing: 0.02em;
+  }
+
+  select, input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-1);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 0.6rem 0.75rem;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A9BB5' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+
+  select:focus, input[type="text"]:focus {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px var(--amber-glow);
+  }
+
+  select option { background: #1A2235; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.65rem 1.25rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .btn:active::after { opacity: 0.06; }
+
+  .btn-primary {
+    background: var(--amber);
+    color: #0B0F1A;
+  }
+
+  .btn-primary:hover { background: #FBBF24; box-shadow: 0 0 16px rgba(245,158,11,0.35); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+  }
+
+  .btn-secondary:hover {
+    background: var(--amber-glow);
+    border-color: var(--amber);
+  }
+
+  .btn-ghost {
+    background: var(--card-alt);
+    color: var(--text-1);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { background: var(--border); }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .btn-loading::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Message Input ── */
+  .msg-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* ── Packets ── */
+  .packets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .packet-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 0.875rem;
+    animation: slideIn 0.25s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .packet-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .packet-time {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-3);
+  }
+
+  .packet-badge {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(16,185,129,0.12);
+    color: var(--green);
+    border: 1px solid rgba(16,185,129,0.25);
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+  }
+
+  .packet-msg {
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    color: var(--text-1);
+    margin-bottom: 0.5rem;
+    word-break: break-all;
+  }
+
+  .packet-stats {
+    display: flex;
+    gap: 1.25rem;
+  }
+
+  .packet-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .packet-stat-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+
+  .packet-stat-val {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--amber);
+  }
+
+  .packets-empty {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-3);
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  /* ── System Messages ── */
+  .msg-log {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .msg-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+    animation: slideIn 0.2s ease;
+    font-size: 0.8125rem;
+  }
+
+  .msg-entry.success {
+    background: rgba(16,185,129,0.07);
+    border-left-color: var(--green);
+  }
+
+  .msg-entry.error {
+    background: rgba(239,68,68,0.07);
+    border-left-color: var(--red);
+  }
+
+  .msg-entry.info {
+    background: rgba(59,130,246,0.07);
+    border-left-color: var(--blue);
+  }
+
+  .msg-icon {
+    font-size: 0.7rem;
+    font-family: var(--mono);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding-top: 0.05rem;
+    flex-shrink: 0;
+    min-width: 52px;
+  }
+
+  .msg-entry.success .msg-icon { color: var(--green); }
+  .msg-entry.error   .msg-icon { color: var(--red);   }
+  .msg-entry.info    .msg-icon { color: var(--blue);  }
+
+  .msg-text { color: var(--text-1); line-height: 1.4; }
+
+  .msg-time {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-3);
+    margin-left: auto;
+    flex-shrink: 0;
+    padding-top: 0.1rem;
+  }
+
+  .msg-empty {
+    text-align: center;
+    padding: 1.5rem 0;
+    color: var(--text-3);
+    font-size: 0.8rem;
+    font-family: var(--mono);
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.75rem 0;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 400px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    header { padding: 0 0.875rem; }
+    .container { padding: 0.875rem; gap: 0.875rem; }
+  }
+
+  /* ── Scan line ambient ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; }
+  header { position: sticky; z-index: 100; }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="header-brand">
+    <div class="header-logo">
+      <!-- Radio wave SVG logo -->
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="6" fill="#141A27"/>
+        <path d="M9 22C9 22 7 18 7 16C7 11.03 11.03 7 16 7C20.97 7 25 11.03 25 16C25 18 23 22 23 22" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M12 22C12 22 10.5 19 10.5 16C10.5 12.96 13.24 10.5 16 10.5C18.76 10.5 21.5 12.96 21.5 16C21.5 19 20 22 20 22" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+        <circle cx="16" cy="16" r="2" fill="#F59E0B"/>
+      </svg>
+    </div>
+    <div class="header-title">
+      DYULABS
+      <span>LoRa Configuration &amp; Test Console</span>
+    </div>
+  </div>
+  <div class="header-ip">192.168.4.1</div>
+</header>
+
+<div class="container">
+
+  <!-- ══ SECTION 1: RADIO STATUS ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="9" cy="9" r="3" fill="#F59E0B"/>
+        <path d="M4 14C4 14 2.5 11.5 2.5 9C2.5 5.41 5.41 2.5 9 2.5C12.59 2.5 15.5 5.41 15.5 9C15.5 11.5 14 14 14 14" stroke="#F59E0B" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span class="card-title">Radio Status</span>
+    </div>
+    <div class="card-body">
+      <div class="status-grid">
+        <div class="status-row">
+          <span class="status-label">UART Connection</span>
+          <span class="status-val" id="stat-uart">
+            <span class="led led-green led-pulse" id="led-uart"></span>
+            <span id="stat-uart-text" class="text-green">Connected</span>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">STM32 Status</span>
+          <span class="status-val" id="stat-stm32">
+            <span class="led led-green" id="led-stm32"></span>
+            <span id="stat-stm32-text" class="text-green">Online</span>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">SX1262 Status</span>
+          <span class="status-val">
+            <span class="led led-green" id="led-sx1262"></span>
+            <span id="stat-sx1262-text" class="text-green">Detected</span>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Configuration Status</span>
+          <span class="status-val">
+            <span class="led led-amber" id="led-cfg"></span>
+            <span id="stat-cfg-text" class="text-amber">Pending</span>
+          </span>
+        </div>
+      </div>
+      <div class="last-update">Last update &nbsp;<span id="last-update-time">—</span></div>
+    </div>
+  </div>
+
+  <!-- ══ SECTION 2: CONFIGURATION ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="9" cy="9" r="2.5" stroke="#8A9BB5" stroke-width="1.2"/>
+        <path d="M9 1.5V3M9 15v1.5M1.5 9H3M15 9h1.5M3.4 3.4l1.06 1.06M13.54 13.54l1.06 1.06M3.4 14.6l1.06-1.06M13.54 4.46l1.06-1.06" stroke="#8A9BB5" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span class="card-title">Configuration</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label for="sel-freq">Frequency</label>
+          <select id="sel-freq">
+            <option value="865062500">865.0625 MHz</option>
+            <option value="865402500">865.4025 MHz</option>
+            <option value="865985000">865.9850 MHz</option>
+            <option value="866230000">866.2300 MHz</option>
+            <option value="866550000">866.5500 MHz</option>
+            <option value="867100000">867.1000 MHz</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sel-sf">Spreading Factor</label>
+          <select id="sel-sf">
+            <option value="7">SF7</option>
+            <option value="8">SF8</option>
+            <option value="9" selected>SF9</option>
+            <option value="10">SF10</option>
+            <option value="11">SF11</option>
+            <option value="12">SF12</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sel-bw">Bandwidth</label>
+          <select id="sel-bw">
+            <option value="125000" selected>125 kHz</option>
+            <option value="250000">250 kHz</option>
+            <option value="500000">500 kHz</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sel-power">TX Power</label>
+          <select id="sel-power">
+            <option value="10">10 dBm</option>
+            <option value="14">14 dBm</option>
+            <option value="17">17 dBm</option>
+            <option value="20">20 dBm</option>
+            <option value="22" selected>22 dBm</option>
+          </select>
+        </div>
+
+        <div class="form-group full">
+          <button class="btn btn-primary" id="btn-apply" onclick="applyConfig()">
+            Apply Configuration
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SECTION 3: PACKET TRANSMISSION ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 9l14-6-6 14-2-5-6-3z" stroke="#8A9BB5" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+      <span class="card-title">Packet Transmission</span>
+    </div>
+    <div class="card-body">
+      <div class="msg-input-wrap">
+        <div class="form-group">
+          <label for="msg-input">Message</label>
+          <input type="text" id="msg-input" placeholder="Hello World" maxlength="200">
+        </div>
+        <button class="btn btn-primary" id="btn-send" onclick="sendPacket()">
+          Send Packet
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SECTION 4: CURRENT CONFIGURATION ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 2v10M9 12l-3-3M9 12l3-3" stroke="#8A9BB5" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 14h12" stroke="#8A9BB5" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span class="card-title">Current Configuration</span>
+    </div>
+    <div class="card-body">
+      <button class="btn btn-secondary" id="btn-getcfg" onclick="getConfig()">
+        Get Current Configuration
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ SECTION 5: RECEIVED PACKETS ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="4" width="14" height="10" rx="2" stroke="#8A9BB5" stroke-width="1.2"/>
+        <path d="M5 7h5M5 10h3" stroke="#8A9BB5" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="13" cy="10" r="1.5" fill="#10B981"/>
+      </svg>
+      <span class="card-title">Received Packets</span>
+    </div>
+    <div class="card-body" style="padding: 0.75rem;">
+      <div class="packets-list" id="packets-list">
+        <div class="packets-empty" id="packets-empty">No packets received yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SECTION 6: SYSTEM MESSAGES ══ -->
+  <div class="card">
+    <div class="card-header">
+      <svg class="card-header-icon" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 2a7 7 0 100 14A7 7 0 009 2z" stroke="#8A9BB5" stroke-width="1.2"/>
+        <path d="M9 8v4M9 6h.01" stroke="#8A9BB5" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span class="card-title">System Messages</span>
+    </div>
+    <div class="card-body" style="padding: 0.75rem;">
+      <div class="msg-log" id="msg-log">
+        <div class="msg-empty" id="msg-empty">Awaiting operations…</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+/* ─── Helpers ─── */
+function nowTime() {
+  const d = new Date();
+  return d.toTimeString().slice(0,8);
+}
+
+function addLog(type, label, text) {
+  const log = document.getElementById('msg-log');
+  const empty = document.getElementById('msg-empty');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = `msg-entry ${type}`;
+  el.innerHTML = `
+    <span class="msg-icon">${label}</span>
+    <span class="msg-text">${text}</span>
+    <span class="msg-time">${nowTime()}</span>
+  `;
+  log.insertBefore(el, log.firstChild);
+  // Keep max 50 entries
+  while (log.children.length > 50) log.removeChild(log.lastChild);
+}
+
+function addPacket(msg, rssi, snr) {
+  const list = document.getElementById('packets-list');
+  const empty = document.getElementById('packets-empty');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = 'packet-item';
+  el.innerHTML = `
+    <div class="packet-meta">
+      <span class="packet-time">${nowTime()}</span>
+      <span class="packet-badge">RX</span>
+    </div>
+    <div class="packet-msg">${escHtml(msg)}</div>
+    <div class="packet-stats">
+      <div class="packet-stat">
+        <span class="packet-stat-label">RSSI</span>
+        <span class="packet-stat-val">${rssi} dBm</span>
+      </div>
+      <div class="packet-stat">
+        <span class="packet-stat-label">SNR</span>
+        <span class="packet-stat-val">${snr} dB</span>
+      </div>
+    </div>
+  `;
+  list.insertBefore(el, list.firstChild);
+  while (list.children.length > 30) list.removeChild(list.lastChild);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setBtn(id, loading, text) {
+  const btn = document.getElementById(id);
+  if (loading) {
+    btn.disabled = true;
+    btn.classList.add('btn-loading');
+    btn.dataset.original = btn.textContent;
+    btn.textContent = '';
+  } else {
+    btn.disabled = false;
+    btn.classList.remove('btn-loading');
+    btn.textContent = text || btn.dataset.original || '';
+  }
+}
+
+function updateLastTime() {
+  document.getElementById('last-update-time').textContent = nowTime();
+}
+
+function setStatus(id, ledId, state, colorClass) {
+  document.getElementById(id).textContent = state;
+  document.getElementById(id).className = colorClass;
+  const led = document.getElementById(ledId);
+  led.className = 'led ' + {
+    'text-green': 'led-green',
+    'text-amber': 'led-amber',
+    'text-red':   'led-red',
+    'text-grey':  'led-grey'
+  }[colorClass] + (colorClass === 'text-green' ? ' led-pulse' : '');
+}
+
+/* ─── Error map ─── */
+const ERROR_MAP = {
+  'INVALID_CMD':   'Command not recognized.',
+  'INVALID_SF':    'Selected spreading factor is not supported.',
+  'INVALID_FREQ':  'Selected frequency is not valid.',
+  'UART_TIMEOUT':  'No response received from STM32.',
+  'UART_DISC':     'Communication link is not established.',
+  'SX1262_MISS':   'SX1262 module not detected.',
+  'TX_FAIL':       'Packet transmission failed.',
+};
+
+function mapError(code) {
+  return ERROR_MAP[code] || code;
+}
+
+/* ─── Simulate UART send/receive ─── */
+// In real deployment this hits fetch('/uart', {method:'POST', body:...})
+// Here we simulate responses for demo/testing.
+
+async function uartSend(payload) 
+  // Simulate network latency
+ {
+    if(payload === "PING")
+        return "PONG";
+
+    if(payload === "GET_CONFIG")
+        return "SF=9\nBW=125000\nFREQ=865062500\nPOWER=22";
+
+    if(payload.startsWith("CFG"))
+        return "SUCCESS\nConfiguration Applied";
+
+    if(payload.startsWith("SEND"))
+        return "SUCCESS\nPacket Sent\nRSSI=-70\nSNR=10";
+
+    return "ERROR\nINVALID_CMD";
+}
+
+ 
+// function simulateSTM32Response(payload) {
+//   const lines = payload.trim().split('\n');
+//   const cmd = lines[0].trim();
+
+//   if (cmd === 'PING') return 'PONG';
+
+//   if (cmd === 'GET_CONFIG') {
+//     return `SF=9\nBW=125000\nFREQ=865062500\nPOWER=22`;
+//   }
+
+//   if (cmd === 'CFG') {
+//     return `SUCCESS\nConfiguration Applied`;
+//   }
+
+//   if (cmd === 'SEND') {
+//     const rssi = -(60 + Math.floor(Math.random()*40));
+//     const snr  = Math.floor(Math.random()*15 - 2);
+//     return `SUCCESS\nPacket Sent\nRSSI=${rssi}\nSNR=${snr}`;
+//   }
+
+//   return 'ERROR\nINVALID_CMD';
+// }
+
+/* ─── Apply Configuration ─── */
+async function applyConfig() {
+  const sf    = document.getElementById('sel-sf').value;
+  const bw    = document.getElementById('sel-bw').value;
+  const freq  = document.getElementById('sel-freq').value;
+  const power = document.getElementById('sel-power').value;
+
+  setBtn('btn-apply', true);
+  addLog('info', 'INFO', 'Sending configuration to STM32…');
+
+  const payload = `CFG\nSF=${sf}\nBW=${bw}\nFREQ=${freq}\nPOWER=${power}\nEND`;
+
+  try {
+    const resp = await uartSend(payload);
+    const lines = resp.trim().split('\n');
+
+    if (lines[0] === 'SUCCESS') {
+      addLog('success', 'SUCCESS', lines[1] || 'Configuration Applied');
+      setStatus('stat-cfg-text', 'led-cfg', 'Applied', 'text-green');
+      updateLastTime();
+    } else {
+      const errLine = lines.find(l => l.startsWith('ERROR')) || lines[1] || 'Unknown error';
+      addLog('error', 'ERROR', mapError(errLine.replace('ERROR\n','').trim()));
+      setStatus('stat-cfg-text', 'led-cfg', 'Pending', 'text-amber');
+    }
+  } catch(e) {
+    addLog('error', 'ERROR', mapError('UART_TIMEOUT'));
+    setStatus('stat-stm32-text', 'led-stm32', 'Offline', 'text-red');
+    setStatus('stat-uart-text',  'led-uart',  'Disconnected', 'text-red');
+  }
+
+  setBtn('btn-apply', false, 'Apply Configuration');
+}
+
+/* ─── Send Packet ─── */
+async function sendPacket() {
+  const msg = document.getElementById('msg-input').value.trim();
+  if (!msg) {
+    addLog('error', 'ERROR', 'Message cannot be empty.');
+    return;
+  }
+
+  setBtn('btn-send', true);
+  addLog('info', 'INFO', `Transmitting packet: "${msg}"`);
+
+  const payload = `SEND\nMSG=${msg}\nEND`;
+
+  try {
+    const resp = await uartSend(payload);
+    const lines = resp.trim().split('\n');
+
+    if (lines[0] === 'SUCCESS') {
+      const rssiLine  = lines.find(l => l.startsWith('RSSI=')) || 'RSSI=0';
+      const snrLine   = lines.find(l => l.startsWith('SNR='))  || 'SNR=0';
+      const rssi = rssiLine.split('=')[1];
+      const snr  = snrLine.split('=')[1];
+
+      addLog('success', 'SUCCESS', `Packet Sent &nbsp;·&nbsp; RSSI: ${rssi} dBm &nbsp;·&nbsp; SNR: ${snr} dB`);
+      // Simulate a loopback received packet for demo
+      addPacket(msg, rssi, snr);
+      document.getElementById('msg-input').value = '';
+      updateLastTime();
+    } else {
+      const errCode = lines[1] || 'TX_FAIL';
+      addLog('error', 'ERROR', mapError(errCode));
+    }
+  } catch(e) {
+    addLog('error', 'ERROR', mapError('UART_TIMEOUT'));
+  }
+
+  setBtn('btn-send', false, 'Send Packet');
+}
+
+/* ─── Get Configuration ─── */
+async function getConfig() {
+  setBtn('btn-getcfg', true);
+  addLog('info', 'INFO', 'Fetching configuration from STM32…');
+
+  try {
+    const resp = await uartSend('GET_CONFIG');
+    const lines = resp.trim().split('\n');
+
+    const cfg = {};
+    lines.forEach(l => {
+      const [k, v] = l.split('=');
+      if (k && v !== undefined) cfg[k.trim()] = v.trim();
+    });
+
+    let applied = 0;
+
+    if (cfg.SF) {
+      const sel = document.getElementById('sel-sf');
+      for (let o of sel.options) { if (o.value === cfg.SF) { o.selected = true; applied++; break; } }
+    }
+    if (cfg.BW) {
+      const sel = document.getElementById('sel-bw');
+      for (let o of sel.options) { if (o.value === cfg.BW) { o.selected = true; applied++; break; } }
+    }
+    if (cfg.FREQ) {
+      const sel = document.getElementById('sel-freq');
+      for (let o of sel.options) { if (o.value === cfg.FREQ) { o.selected = true; applied++; break; } }
+    }
+    if (cfg.POWER) {
+      const sel = document.getElementById('sel-power');
+      for (let o of sel.options) { if (o.value === cfg.POWER) { o.selected = true; applied++; break; } }
+    }
+
+    if (applied > 0) {
+      addLog('success', 'SUCCESS', `Configuration Retrieved &nbsp;·&nbsp; SF${cfg.SF || '?'} / ${parseInt(cfg.BW||0)/1000}kHz / ${(parseInt(cfg.FREQ||0)/1e6).toFixed(4)} MHz / ${cfg.POWER || '?'} dBm`);
+      setStatus('stat-cfg-text', 'led-cfg', 'Applied', 'text-green');
+      updateLastTime();
+    } else {
+      addLog('error', 'ERROR', 'Could not parse configuration response.');
+    }
+  } catch(e) {
+    addLog('error', 'ERROR', mapError('UART_TIMEOUT'));
+  }
+
+  setBtn('btn-getcfg', false, 'Get Current Configuration');
+}
+
+/* ─── Initial PING ─── */
+async function pingSTM32() {
+  try {
+    const resp = await uartSend('PING');
+    if (resp.trim() === 'PONG') {
+      setStatus('stat-uart-text',  'led-uart',  'Connected', 'text-green');
+      setStatus('stat-stm32-text', 'led-stm32', 'Online',    'text-green');
+      setStatus('stat-sx1262-text','led-sx1262','Detected',  'text-green');
+      addLog('success', 'SUCCESS', 'STM32 link established. System ready.');
+      updateLastTime();
+    }
+  } catch(e) {
+    setStatus('stat-uart-text',  'led-uart',  'Disconnected', 'text-red');
+    setStatus('stat-stm32-text', 'led-stm32', 'Offline',      'text-red');
+    setStatus('stat-sx1262-text','led-sx1262','Not Detected',  'text-red');
+    addLog('error', 'ERROR', mapError('UART_DISC'));
+  }
+}
+
+/* ─── Enter key for send ─── */
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendPacket();
+});
+
+/* ─── Boot ─── */
+pingSTM32();
+setInterval(pingSTM32, 30000);
+</script>
+</body>
+</html>

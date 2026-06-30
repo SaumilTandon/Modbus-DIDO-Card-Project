@@ -1,0 +1,6 @@
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+"-specs=D:/Project Folder DYULABS/ESP32_LORA_DASHBOARD/build/specs/picolibc.specs"

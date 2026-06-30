@@ -1,0 +1,6 @@
+"-specs=D:/Project Folder DYULABS/ESP32_DEVKIT_V1/rtc_project/build/bootloader/specs/picolibc.specs"
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero

@@ -1,0 +1,134 @@
+from pymodbus.client import ModbusSerialClient
+import time
+
+# =====================================================
+# CONFIGURATION
+# =====================================================
+
+PORT = "COM15"
+BAUDRATE = 9600
+DEVICE_ID = 1
+
+# ---------- Wind Speed ----------
+ZERO_CURRENT = 5.17
+MAX_CURRENT = 20.0
+MAX_SPEED = 250.0
+
+# =====================================================
+# MODBUS CONNECTION
+# =====================================================
+
+client = ModbusSerialClient(
+    port=PORT,
+    baudrate=BAUDRATE,
+    parity="N",
+    stopbits=1,
+    bytesize=8,
+    timeout=1
+)
+
+if not client.connect():
+    print("Failed to connect to Modbus device.")
+    exit()
+
+print("\n========================================")
+print(" Wind Monitoring System Started")
+print("========================================\n")
+
+try:
+
+    while True:
+
+        # -----------------------------
+        # Read Wind Speed
+        # -----------------------------
+        speed = client.read_input_registers(
+            address=4000,
+            count=1,
+            device_id=DEVICE_ID
+        )
+
+        # -----------------------------
+        # Read Wind Direction
+        # -----------------------------
+        direction = client.read_input_registers(
+            address=4002,
+            count=1,
+            device_id=DEVICE_ID
+        )
+
+        if speed.isError() or direction.isError():
+            print("Modbus Read Error")
+            time.sleep(1)
+            continue
+
+        # =====================================================
+        # WIND SPEED
+        # =====================================================
+
+        speed_raw = speed.registers[0]
+
+        current_mA = speed_raw / 100.0
+
+        wind_speed = (
+            (current_mA - ZERO_CURRENT)
+            / (MAX_CURRENT - ZERO_CURRENT)
+        ) * MAX_SPEED
+
+        if wind_speed < 0:
+            wind_speed = 0
+
+        # =====================================================
+        # WIND DIRECTION (0° to 270° CALIBRATED)
+        # =====================================================
+
+        direction_raw = direction.registers[0]
+
+        if direction_raw <= 1449:
+
+            # 0° -> 90°
+            wind_direction = (direction_raw / 1449.0) * 90.0
+
+        elif direction_raw <= 3107:
+
+            # 90° -> 180°
+            wind_direction = 90.0 + (
+                (direction_raw - 1449.0)
+                * 90.0
+                / (3107.0 - 1449.0)
+            )
+
+        elif direction_raw <= 4027:
+
+            # 180° -> 270°
+            wind_direction = 180.0 + (
+                (direction_raw - 3107.0)
+                * 90.0
+                / (4027.0 - 3107.0)
+            )
+
+        else:
+
+            # Temporary until hardware issue is resolved
+            wind_direction = 270.0
+
+        # =====================================================
+        # DISPLAY
+        # =====================================================
+
+        print("---------------------------------------------------")
+        print(f"Wind Speed      : {wind_speed:7.2f} km/h")
+        print(f"Current         : {current_mA:7.2f} mA")
+        print(f"Speed Raw       : {speed_raw}")
+        print()
+        print(f"Wind Direction  : {wind_direction:7.2f}°")
+        print(f"Direction Raw   : {direction_raw}")
+        print("---------------------------------------------------\n")
+
+        time.sleep(0.5)
+
+except KeyboardInterrupt:
+    print("\nProgram Stopped")
+
+finally:
+    client.close()

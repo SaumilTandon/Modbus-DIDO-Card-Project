@@ -1,0 +1,2 @@
+source D:/Project Folder DYULABS/ESP32_DEVKIT_V1/rtc_project/build/bootloader/gdbinit/symbols
+source D:/Project Folder DYULABS/ESP32_DEVKIT_V1/rtc_project/build/bootloader/gdbinit/connect
